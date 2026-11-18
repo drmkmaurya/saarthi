@@ -1,0 +1,353 @@
+ <!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>सारथी Admin Control</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Noto Sans Devanagari', 'Inter', sans-serif; }
+  </style>
+</head>
+<body class="bg-stone-50 text-slate-800 antialiased pb-14">
+
+  <!-- Loading -->
+  <div id="adminLoading" class="min-h-screen flex items-center justify-center">
+    <div class="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+  </div>
+
+  <!-- Denied -->
+  <div id="adminDenied" class="hidden min-h-screen flex flex-col items-center justify-center p-4 text-center space-y-3">
+    <p class="font-bold text-slate-800">⛔ Access Denied: सिर्फ Admin के लिए</p>
+    <a href="/" class="text-xs text-orange-600 underline font-semibold">होम पेज पर वापस जाएं</a>
+  </div>
+
+  <!-- Main Admin Panel -->
+  <div id="adminApp" class="hidden">
+    <header class="bg-slate-900 text-white px-4 py-3.5 sticky top-0 z-20 shadow-md">
+      <div class="max-w-4xl mx-auto flex items-center justify-between">
+        <a href="/" class="flex items-center gap-1.5 text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-xl">← App पर जाएं</a>
+        <h1 class="font-bold text-sm sm:text-base">🛡️ सारथी Admin Control</h1>
+        <span class="text-[11px] text-amber-400 font-mono">ADMIN</span>
+      </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-3.5 mt-5 space-y-5">
+      <!-- Tabs -->
+      <div class="flex gap-2 bg-white p-1.5 rounded-2xl border border-stone-200 shadow-xs">
+        <button onclick="switchAdminTab('users')" id="atab_users" class="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold bg-orange-500 text-white">👥 Users & Access</button>
+        <button onclick="switchAdminTab('prompts')" id="atab_prompts" class="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold text-slate-600 hover:bg-stone-100">🤖 Prompts & Modules</button>
+        <button onclick="switchAdminTab('knowledge')" id="atab_knowledge" class="flex-1 py-2.5 px-3 rounded-xl text-xs font-bold text-slate-600 hover:bg-stone-100">📚 Upload Knowledge</button>
+      </div>
+
+      <!-- TAB 1: USERS & ACCESS -->
+      <section id="sec_users" class="space-y-3"></section>
+
+      <!-- TAB 2: PROMPTS & MODULES -->
+      <section id="sec_prompts" class="hidden space-y-4"></section>
+
+      <!-- TAB 3: UPLOAD PDF / NOTES -->
+      <section id="sec_knowledge" class="hidden">
+        <form onsubmit="handleKnowledgeUpload(event)" class="bg-white rounded-2xl p-5 border border-stone-200 shadow-xs space-y-4">
+          <h2 class="font-bold text-base text-slate-800">PDF या Video Transcript से Vector Knowledge जोड़ें</h2>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">किस Assistant के लिए?</label>
+              <select id="knModuleSelect" class="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm bg-stone-50"></select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">स्रोत का नाम (Source Name)</label>
+              <input id="knSourceName" type="text" placeholder="जैसे: Vastu Complete Guide PDF" class="w-full rounded-xl border border-stone-300 px-3 py-2 text-sm" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">विकल्प 1: PDF फाइल चुनें (Browser me automatic chunk hogi)</label>
+            <input id="knPdfFile" type="file" accept=".pdf" class="w-full text-xs file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:bg-amber-100 file:text-amber-800 file:font-semibold" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">विकल्प 2: Video Transcript / Hindi Notes सीधे पेस्ट करें</label>
+            <textarea id="knManualText" rows="5" placeholder="Video transcript ya vishesh Hindi notes yahan paste karein..." class="w-full rounded-xl border border-stone-300 p-3 text-xs"></textarea>
+          </div>
+
+          <div id="knProgressWrap" class="hidden space-y-1.5">
+            <div class="w-full bg-stone-200 rounded-full h-2.5 overflow-hidden">
+              <div id="knProgressBar" class="bg-orange-500 h-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+            <p id="knProgressText" class="text-xs text-slate-600 font-medium">Processing...</p>
+          </div>
+
+          <button id="knSubmitBtn" type="submit" class="w-full py-3 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-sm shadow-sm">
+            ✅ Embed & Save to Knowledge Base
+          </button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    let sb = null;
+    let adminProfile = null;
+    let usersList = [];
+    let modulesList = [];
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const cfg = await (await fetch('/api/config')).json();
+        sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+
+        const { data: { session } } = await sb.auth.getSession();
+        if (!session?.user) return showAdminView('adminDenied');
+
+        const { data: prof } = await sb.from('profiles').select('*').eq('id', session.user.id).single();
+        if (!prof || prof.role !== 'admin') return showAdminView('adminDenied');
+
+        adminProfile = prof;
+        await reloadAdminData();
+        showAdminView('adminApp');
+      } catch (e) {
+        alert('Admin Load Error: ' + e.message);
+      }
+    });
+
+    function showAdminView(id) {
+      ['adminLoading', 'adminDenied', 'adminApp'].forEach(v => document.getElementById(v).classList.add('hidden'));
+      document.getElementById(id).classList.remove('hidden');
+    }
+
+    function switchAdminTab(tab) {
+      ['users', 'prompts', 'knowledge'].forEach(t => {
+        document.getElementById(`sec_${t}`).classList.toggle('hidden', t !== tab);
+        document.getElementById(`atab_${t}`).className = t === tab
+          ? 'flex-1 py-2.5 px-3 rounded-xl text-xs font-bold bg-orange-500 text-white'
+          : 'flex-1 py-2.5 px-3 rounded-xl text-xs font-bold text-slate-600 hover:bg-stone-100';
+      });
+    }
+
+    async function reloadAdminData() {
+      const [{ data: u }, { data: m }] = await Promise.all([
+        sb.from('profiles').select('*').order('created_at', { ascending: false }),
+        sb.from('assistants_config').select('*').order('sort_order', { ascending: true })
+      ]);
+      usersList = u || [];
+      modulesList = m || [];
+      renderUsers();
+      renderPrompts();
+      renderKnowledgeSelect();
+    }
+
+    function renderUsers() {
+      const box = document.getElementById('sec_users');
+      box.innerHTML = usersList.map(u => `
+        <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-xs space-y-3">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="font-bold text-sm text-slate-800">${u.full_name || 'No Name'}</p>
+              <p class="text-xs text-slate-500">${u.email}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <select onchange="patchUser('${u.id}', { status: this.value })"
+                class="text-xs font-bold px-2.5 py-1.5 rounded-xl border ${u.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}">
+                <option value="pending" ${u.status === 'pending' ? 'selected' : ''}>Pending</option>
+                <option value="approved" ${u.status === 'approved' ? 'selected' : ''}>Approved</option>
+                <option value="blocked" ${u.status === 'blocked' ? 'selected' : ''}>Blocked</option>
+              </select>
+              <select onchange="patchUser('${u.id}', { role: this.value })"
+                class="text-xs font-semibold px-2.5 py-1.5 rounded-xl border border-stone-200 bg-stone-50">
+                <option value="user" ${u.role === 'user' ? 'selected' : ''}>User</option>
+                <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-stone-100 text-xs">
+            <div class="flex flex-wrap items-center gap-3">
+              <span class="text-slate-400 font-semibold">Access:</span>
+              ${modulesList.map(m => `
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" ${(u.allowed_modules || []).includes(m.slug) ? 'checked' : ''}
+                    onchange="toggleUserMod('${u.id}', '${m.slug}')" />
+                  <span>${m.title}</span>
+                </label>
+              `).join('')}
+            </div>
+            <div class="flex items-center gap-1.5">
+              <span class="text-slate-500">DB Chat Limit:</span>
+              <input type="number" min="5" max="1000" value="${u.max_db_chats || 10}"
+                onchange="patchUser('${u.id}', { max_db_chats: Number(this.value) || 10 })"
+                class="w-16 px-2 py-1 rounded-lg border border-stone-300 text-center font-bold" />
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function patchUser(id, patch) {
+      await sb.from('profiles').update(patch).eq('id', id);
+      await reloadAdminData();
+    }
+
+    async function toggleUserMod(userId, slug) {
+      const u = usersList.find(x => x.id === userId);
+      const curr = u.allowed_modules || [];
+      const updated = curr.includes(slug) ? curr.filter(s => s !== slug) : [...curr, slug];
+      await patchUser(userId, { allowed_modules: updated });
+    }
+
+    function renderPrompts() {
+      const box = document.getElementById('sec_prompts');
+      const existingHtml = modulesList.map(m => `
+        <div class="bg-white rounded-2xl p-4 border border-stone-200 shadow-xs space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <input id="icon_${m.slug}" type="text" value="${m.icon || '🤖'}" class="w-10 text-center border border-stone-200 rounded-lg py-1" />
+              <input id="title_${m.slug}" type="text" value="${m.title}" class="font-bold text-sm border border-stone-200 rounded-lg px-2.5 py-1" />
+              <span class="text-[11px] font-mono text-slate-400">(${m.slug})</span>
+            </div>
+            <button onclick="saveModulePrompt('${m.slug}')" class="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold">💾 Save</button>
+          </div>
+          ${m.slug !== 'morning' ? `
+            <textarea id="prompt_${m.slug}" rows="3" class="w-full rounded-xl border border-stone-200 bg-stone-50 p-3 text-xs leading-relaxed">${m.system_prompt || ''}</textarea>
+          ` : ''}
+        </div>
+      `).join('');
+
+      const addNewHtml = `
+        <form onsubmit="createNewAssistant(event)" class="bg-amber-50/70 rounded-2xl p-4 border border-amber-200 space-y-3">
+          <h3 class="font-bold text-sm text-amber-900">➕ नया Assistant जोड़ें (Same Universal Chat UI के साथ चलेगा)</h3>
+          <div class="grid grid-cols-3 gap-2">
+            <input id="newSlug" type="text" placeholder="Slug (e.g. ayurveda)" required class="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs" />
+            <input id="newTitle" type="text" placeholder="Title (e.g. Ayurveda)" required class="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs" />
+            <input id="newIcon" type="text" placeholder="Emoji (🌿)" value="🌿" class="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs text-center" />
+          </div>
+          <textarea id="newPrompt" rows="2" placeholder="System Prompt likhein..." required class="w-full rounded-xl border border-amber-200 bg-white p-2.5 text-xs"></textarea>
+          <button type="submit" class="px-4 py-2 rounded-xl bg-orange-500 text-white text-xs font-bold">Add Assistant</button>
+        </form>
+      `;
+
+      box.innerHTML = existingHtml + addNewHtml;
+    }
+
+    async function saveModulePrompt(slug) {
+      const icon = document.getElementById(`icon_${slug}`).value.trim();
+      const title = document.getElementById(`title_${slug}`).value.trim();
+      const promptEl = document.getElementById(`prompt_${slug}`);
+      const patch = { icon, title, updated_at: new Date().toISOString() };
+      if (promptEl) patch.system_prompt = promptEl.value;
+
+      await sb.from('assistants_config').update(patch).eq('slug', slug);
+      alert(`"${title}" अपडेट हो गया!`);
+      await reloadAdminData();
+    }
+
+    async function createNewAssistant(e) {
+      e.preventDefault();
+      const slug = document.getElementById('newSlug').value.trim().toLowerCase().replace(/\s+/g, '_');
+      const title = document.getElementById('newTitle').value.trim();
+      const icon = document.getElementById('newIcon').value.trim() || '🤖';
+      const system_prompt = document.getElementById('newPrompt').value.trim();
+
+      await sb.from('assistants_config').insert({
+        slug, title, icon, system_prompt, sort_order: modulesList.length + 1
+      });
+      e.target.reset();
+      alert('नया Assistant जुड़ गया! अब Users टैब से जिसे चाहें उसका Access दें।');
+      await reloadAdminData();
+    }
+
+    function renderKnowledgeSelect() {
+      const sel = document.getElementById('knModuleSelect');
+      sel.innerHTML = modulesList
+        .filter(m => m.slug !== 'morning')
+        .map(m => `<option value="${m.slug}">${m.icon || '🤖'} ${m.title}</option>`)
+        .join('');
+    }
+
+    async function extractPdfChunks(file, onProg) {
+      const buf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        fullText += `\n[Page ${i}] ` + content.items.map(it => it.str).join(' ');
+        onProg(Math.round((i / pdf.numPages) * 40));
+      }
+      const clean = fullText.replace(/\s+/g, ' ').trim();
+      const chunks = [];
+      for (let s = 0; s < clean.length; s += 950) {
+        const part = clean.slice(s, s + 1100).trim();
+        if (part.length > 60) chunks.push(part);
+      }
+      return chunks;
+    }
+
+    async function handleKnowledgeUpload(e) {
+      e.preventDefault();
+      const file = document.getElementById('knPdfFile').files[0];
+      const manual = document.getElementById('knManualText').value.trim();
+      if (!file && !manual) return alert('कृपया PDF चुनें या नोट्स पेस्ट करें।');
+
+      const btn = document.getElementById('knSubmitBtn');
+      const wrap = document.getElementById('knProgressWrap');
+      const bar = document.getElementById('knProgressBar');
+      const txt = document.getElementById('knProgressText');
+
+      btn.disabled = true;
+      wrap.classList.remove('hidden');
+      bar.style.width = '5%';
+
+      try {
+        const moduleSlug = document.getElementById('knModuleSelect').value;
+        const sourceName = document.getElementById('knSourceName').value.trim() || file?.name || 'Manual Notes';
+        let chunks = [];
+
+        if (file) {
+          chunks = await extractPdfChunks(file, p => {
+            bar.style.width = p + '%';
+            txt.innerText = `PDF पढ़ा जा रहा है: ${p}%`;
+          });
+        } else {
+          const clean = manual.replace(/\s+/g, ' ').trim();
+          for (let i = 0; i < clean.length; i += 1000) chunks.push(clean.slice(i, i + 1000));
+          bar.style.width = '40%';
+        }
+
+        const batchSize = 8;
+        for (let i = 0; i < chunks.length; i += batchSize) {
+          const batch = chunks.slice(i, i + batchSize);
+          const res = await fetch('/api/embed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              adminId: adminProfile.id,
+              moduleSlug,
+              sourceName,
+              chunks: batch
+            })
+          });
+          if (!res.ok) throw new Error('Embedding batch failed');
+          const pct = 40 + Math.round(((i + batch.length) / chunks.length) * 60);
+          bar.style.width = Math.min(pct, 100) + '%';
+          txt.innerText = `Supabase Vector DB में सेव हो रहा है: ${Math.min(pct, 100)}%`;
+        }
+
+        alert(`✅ सफल! कुल ${chunks.length} ज्ञान खंड (Vector Chunks) जुड़ गए हैं।`);
+        e.target.reset();
+      } catch (err) {
+        alert('Upload Error: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        wrap.classList.add('hidden');
+      }
+    }
+  </script>
+</body>
+</html>

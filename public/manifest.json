@@ -1,22 +1,10 @@
 {
-  "name": "Saarthi - Personal AI & Wellness Assistant",
-  "short_name": "Saarthi",
+  "name": "सारथी (Saarthi) - AI Wellness & Vastu",
+  "short_name": "सारथी",
   "description": "Acupressure, Vastu Shastra & Daily Suprabhat Assistant",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fafaf9",
   "theme_color": "#f97316",
-  "orientation": "portrait",
-  "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
-  ]
+  "orientation": "portrait"
 }
