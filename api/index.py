@@ -45,6 +45,14 @@ def public_config():
         "supabaseAnonKey": SUPABASE_ANON_KEY
     }
 
+@app.get("/api/profile")
+@app.get("/profile")
+def get_user_profile(userId: str):
+    db = get_admin_db()
+    prof = db.table("profiles").select("*").eq("id", userId).single().execute().data
+    mods = db.table("assistants_config").select("*").eq("is_active", True).order("sort_order").execute().data
+    return {"profile": prof, "modules": mods or []}
+
 @app.post("/api/chat")
 def chat_endpoint(req: ChatReq):
     try:
