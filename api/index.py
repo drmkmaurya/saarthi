@@ -20,7 +20,8 @@ SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = "gemini-3.5-flash-lite"
+PRIMARY_MODEL = "gemini-3.5-flash-lite"
+FALLBACK_MODEL = "gemini-2.5-flash-lite"
 
 def get_admin_db() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -72,6 +73,7 @@ def chat_endpoint(req: ChatReq):
         mod_data = db.table("assistants_config").select("system_prompt").eq("slug", req.moduleSlug).single().execute().data
         base_prompt = (mod_data or {}).get("system_prompt", "Aap ek sahayak AI hain.")
 
+        # Embedding via gemini-embedding-001 (768 dim)
         emb_res = ai.models.embed_content(
             model="gemini-embedding-001",
             contents=req.query,
@@ -91,7 +93,7 @@ def chat_endpoint(req: ChatReq):
 
         if req.sourceMode == "book_only" and not context:
             return {
-                "answer": "📚 संलग्न ग्रंथों (Knowledge Base) में इस विषय पर सीधा संदर्भ नहीं मिला। कृपया ऊपर स्रोत मोड को 'ग्रंथ + इंटरनेट (Hybrid)' पर बदलकर पुनः पूछें।",
+                "answer": "📚 संलग्न ग्रंथों (Knowledge Base) में इस विषय पर सीधा संदर्भ नहीं मिला। कृपया ऊपर स्रोत मोड को 'ग्रंथ + इंटरनेट' पर बदलकर पुनः पूछें।",
                 "chatId": ""
             }
 
@@ -110,11 +112,11 @@ def chat_endpoint(req: ChatReq):
             tools=[{"google_search": {}}] if req.sourceMode != "book_only" else None
         )
 
-        gen_res = ai.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=user_prompt,
-            config=gen_config
-        )
+        try:
+            gen_res = ai.models.generate_content(model=PRIMARY_MODEL, contents=user_prompt, config=gen_config)
+        except Exception:
+            gen_res = ai.models.generate_content(model=FALLBACK_MODEL, contents=user_prompt, config=gen_config)
+
         answer = gen_res.text or "क्षमा करें, अभी उत्तर तैयार नहीं हो सका।"
 
         ins_res = db.table("chat_logs").insert({
@@ -147,7 +149,11 @@ def embed_endpoint(req: EmbedReq):
         for ch in req.chunks:
             if not ch.strip():
                 continue
-            emb = ai.models.embed_content(model="text-embedding-004", contents=ch)
+            emb = ai.models.embed_content(
+                model="gemini-embedding-001",
+                contents=ch,
+                config=types.EmbedContentConfig(output_dimensionality=768)
+            )
             rows.append({
                 "module_slug": req.moduleSlug,
                 "source_name": req.sourceName,
