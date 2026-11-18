@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>सारथी (Saarthi) - AI Wellness & Vastu Assistant</title>
+  <title>सारथी (Saarthi)</title>
   <link rel="manifest" href="/manifest.json" />
-  <meta name="theme-color" content="#f97316" />
+  <meta name="theme-color" content="#075E54" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
@@ -13,103 +13,171 @@
     body { font-family: 'Noto Sans Devanagari', 'Inter', sans-serif; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .wa-canvas {
+      background-color: #EFEAE2;
+      background-image: radial-gradient(#d6cfc2 0.85px, transparent 0.85px);
+      background-size: 16px 16px;
+    }
   </style>
 </head>
-<body class="bg-stone-50 text-slate-800 antialiased">
+<body class="bg-[#F4F6F5] text-slate-800 antialiased selection:bg-emerald-200">
+
+  <!-- Toast Popup for Errors / Notices -->
+  <div id="toastBox" class="hidden fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-sm w-[92%] bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-between gap-3 text-xs">
+    <span id="toastText" class="leading-relaxed"></span>
+    <button onclick="document.getElementById('toastBox').classList.add('hidden')" class="text-slate-400 hover:text-white font-bold">✕</button>
+  </div>
 
   <!-- 1. Loading Screen -->
-  <div id="loadingScreen" class="min-h-screen flex flex-col items-center justify-center gap-3">
-    <div class="w-9 h-9 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-    <p class="text-sm font-medium text-slate-600">सारथी लोड हो रहा है...</p>
+  <div id="loadingScreen" class="min-h-screen flex flex-col items-center justify-center gap-3 bg-[#F4F6F5]">
+    <div class="w-9 h-9 border-4 border-[#075E54] border-t-transparent rounded-full animate-spin"></div>
+    <p class="text-xs font-semibold text-slate-600">सारथी लोड हो रहा है...</p>
   </div>
 
   <!-- 2. Google Login Screen -->
-  <div id="loginScreen" class="hidden min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-amber-50 via-stone-50 to-orange-50">
-    <div class="bg-white max-w-sm w-full rounded-3xl p-7 shadow-xl border border-amber-200/60 text-center space-y-5">
-      <div class="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-tr from-orange-500 to-amber-400 text-white text-3xl flex items-center justify-center shadow-md">🌅</div>
+  <div id="loginScreen" class="hidden min-h-screen flex items-center justify-center p-4 bg-gradient-to-b from-[#075E54]/10 to-[#F4F6F5]">
+    <div class="bg-white max-w-sm w-full rounded-3xl p-7 shadow-xl border border-emerald-900/10 text-center space-y-5">
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-[#075E54] text-white text-3xl flex items-center justify-center shadow-md">🌿</div>
       <div>
         <h1 class="text-2xl font-bold text-slate-800">सारथी (Saarthi)</h1>
         <p class="text-xs text-slate-500 mt-1">एक्यूप्रेशर, वास्तु शास्त्र एवं सुप्रभात सहायक</p>
       </div>
-      <button onclick="loginWithGoogle()" class="w-full py-3 px-4 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-[0.98] text-white font-semibold text-sm flex items-center justify-center gap-2.5 shadow-md transition">
-        <img src="https://www.google.com/favicon.ico" alt="G" class="w-4 h-4" />
+      <button onclick="loginWithGoogle()" class="w-full py-3.5 px-4 rounded-2xl bg-[#075E54] hover:bg-[#064c44] active:scale-[0.98] text-white font-semibold text-sm flex items-center justify-center gap-2.5 shadow-md transition">
+        <img src="https://www.google.com/favicon.ico" alt="G" class="w-4 h-4 bg-white rounded-full p-0.5" />
         <span>Google से लॉगिन करें</span>
       </button>
     </div>
   </div>
 
-  <!-- 3. Pending / Blocked Approval Screen -->
-  <div id="pendingScreen" class="hidden min-h-screen flex items-center justify-center p-4 bg-stone-50">
-    <div class="bg-white max-w-sm w-full rounded-3xl p-7 shadow-lg border border-stone-200 text-center space-y-4">
-      <div class="w-14 h-14 mx-auto rounded-2xl bg-amber-100 text-amber-600 text-2xl flex items-center justify-center">⏳</div>
+  <!-- 3. Pending Screen -->
+  <div id="pendingScreen" class="hidden min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white max-w-sm w-full rounded-3xl p-7 shadow-lg border border-slate-200 text-center space-y-4">
+      <div class="w-14 h-14 mx-auto rounded-2xl bg-amber-100 text-amber-700 text-2xl flex items-center justify-center">⏳</div>
       <h2 id="pendingTitle" class="text-lg font-bold text-slate-800">एडमिन अप्रूवल प्रतीक्षारत</h2>
       <p id="pendingDesc" class="text-xs text-slate-600 leading-relaxed"></p>
-      <button onclick="logoutUser()" class="w-full py-2.5 rounded-xl bg-stone-100 hover:bg-stone-200 text-slate-700 text-xs font-semibold">दूसरे अकाउंट से लॉगिन करें</button>
+      <button onclick="logoutUser()" class="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold">दूसरे अकाउंट से लॉगिन करें</button>
     </div>
   </div>
 
-  <!-- 4. Main Approved App -->
-  <div id="mainApp" class="hidden min-h-screen flex flex-col">
-    <!-- Top Header & Navigation -->
-    <header class="sticky top-0 z-30 bg-gradient-to-r from-orange-600 via-amber-500 to-orange-500 text-white shadow-md">
-      <div class="max-w-3xl mx-auto px-3.5 py-3 flex items-center justify-between">
-        <!-- Left Drawer Button -->
-        <button onclick="toggleDrawer(true)" class="p-2 rounded-xl bg-white/20 hover:bg-white/30 active:scale-95 transition">☰</button>
+  <!-- 4. Main App Shell -->
+  <div id="mainApp" class="hidden min-h-screen flex flex-col max-w-lg mx-auto bg-white shadow-xl border-x border-slate-200/70">
 
-        <!-- Center Logo -->
-        <div class="flex items-center gap-2">
-          <span class="text-xl">🌅</span>
-          <h1 class="text-lg sm:text-xl font-bold tracking-wide">सारथी (Saarthi)</h1>
+    <!-- VIEW A: HOME LAUNCHER (Cards Only) -->
+    <div id="homeView" class="flex-1 flex flex-col">
+      <!-- Clean Deep Emerald Top Bar -->
+      <header class="sticky top-0 z-30 bg-[#075E54] text-white px-4 py-3.5 flex items-center justify-between shadow-sm">
+        <button onclick="toggleDrawer(true)" class="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition">☰</button>
+        <div class="text-center">
+          <h1 class="text-lg font-bold tracking-wide flex items-center justify-center gap-1.5">
+            <span>🌿</span><span>सारथी (Saarthi)</span>
+          </h1>
+          <p class="text-[10px] text-emerald-100/80">Drugless Healing • Vastu • Daily Studio</p>
         </div>
+        <button onclick="toggleProfileMenu()" class="relative flex items-center gap-1.5 bg-white/15 hover:bg-white/25 p-1 rounded-full">
+          <img id="userAvatar" src="" class="w-8 h-8 rounded-full object-cover hidden" />
+          <div id="userInitial" class="w-8 h-8 rounded-full bg-emerald-800 flex items-center justify-center text-xs font-bold">U</div>
+        </button>
+      </header>
 
-        <!-- Right Google Profile & Logout -->
-        <div class="relative">
-          <button onclick="toggleProfileMenu()" class="flex items-center gap-2 bg-white/20 hover:bg-white/30 pl-1.5 pr-2.5 py-1 rounded-full transition">
-            <img id="userAvatar" src="" class="w-7 h-7 rounded-full border border-white/70 object-cover hidden" />
-            <div id="userInitial" class="w-7 h-7 rounded-full bg-amber-800 flex items-center justify-center text-xs font-bold">U</div>
-            <span id="userFirstName" class="text-xs font-semibold max-w-[75px] truncate hidden sm:inline">User</span>
-          </button>
-          <div id="profileDropdown" class="hidden absolute right-0 mt-2 w-56 bg-white text-slate-800 rounded-2xl shadow-xl border border-stone-200 p-3 z-50">
-            <p id="menuFullName" class="text-xs font-bold truncate"></p>
-            <p id="menuEmail" class="text-[11px] text-slate-500 truncate mb-2.5"></p>
-            <button onclick="logoutUser()" class="w-full py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold">🚪 Logout</button>
-          </div>
+      <!-- Profile Dropdown -->
+      <div id="profileDropdown" class="hidden fixed right-4 top-16 w-56 bg-white text-slate-800 rounded-2xl shadow-2xl border border-slate-200 p-3.5 z-50">
+        <p id="menuFullName" class="text-xs font-bold truncate"></p>
+        <p id="menuEmail" class="text-[11px] text-slate-500 truncate mb-3"></p>
+        <button onclick="logoutUser()" class="w-full py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold">🚪 Logout</button>
+      </div>
+
+      <!-- Greeting Banner -->
+      <div class="px-4 pt-5 pb-2">
+        <div class="bg-gradient-to-r from-[#075E54] to-[#128C7E] text-white rounded-2xl p-4 shadow-sm">
+          <p id="welcomeGreeting" class="text-sm font-bold">प्रणाम 🙏</p>
+          <p class="text-xs text-emerald-50/90 mt-1">नीचे दिए गए किसी भी सहायक कार्ड को चुनें:</p>
         </div>
       </div>
 
-      <!-- Dynamic Module Switcher Tabs -->
-      <div id="moduleTabs" class="max-w-3xl mx-auto px-3 pb-2.5 flex items-center gap-2 overflow-x-auto no-scrollbar"></div>
-    </header>
+      <!-- Module Cards Grid (Only Cards on Homepage) -->
+      <div id="homeCardsGrid" class="p-4 grid grid-cols-1 gap-3.5 flex-1 content-start"></div>
+    </div>
+
+    <!-- VIEW B: ACTIVE MODULE VIEW (Opens when a Card is clicked) -->
+    <div id="moduleView" class="hidden flex-1 flex flex-col h-screen">
+      <!-- Module Specific Header -->
+      <header class="bg-[#075E54] text-white px-3 py-2.5 flex items-center justify-between shadow-sm shrink-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <button onclick="goHome()" class="px-2.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-bold flex items-center gap-1 shrink-0">
+            ← Home
+          </button>
+          <div class="w-9 h-9 rounded-full bg-white/15 flex items-center justify-center text-lg shrink-0" id="modHeaderIcon">🌿</div>
+          <div class="min-w-0">
+            <h2 id="modHeaderTitle" class="font-bold text-sm truncate">Assistant</h2>
+            <p id="modHeaderSub" class="text-[10px] text-emerald-200 flex items-center gap-1 truncate">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 inline-block"></span>
+              <span>ऑनलाइन • सक्रिय</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Font Size Controls (A- 15 A+) -->
+        <div class="flex items-center gap-1 bg-black/20 px-2 py-1 rounded-full text-[11px] font-bold shrink-0">
+          <button onclick="changeFontSize(-1)" class="px-1.5 hover:text-emerald-200">A-</button>
+          <span id="fontSizeLabel" class="text-emerald-100 px-1">15</span>
+          <button onclick="changeFontSize(1)" class="px-1.5 hover:text-emerald-200">A+</button>
+        </div>
+      </header>
+
+      <!-- Container for Chat UI -->
+      <div id="chatContainer" class="hidden flex-1 flex flex-col min-h-0"></div>
+
+      <!-- Container for Morning Studio -->
+      <div id="morningContainer" class="hidden flex-1 overflow-y-auto px-3.5 py-4 space-y-4 bg-[#F4F6F5]"></div>
+    </div>
 
     <!-- Left Slide-Over Sidebar Drawer -->
     <div id="drawerOverlay" class="hidden fixed inset-0 z-50 flex">
       <div onclick="toggleDrawer(false)" class="fixed inset-0 bg-slate-900/50"></div>
       <aside class="relative w-72 max-w-[82vw] bg-white h-full shadow-2xl p-5 flex flex-col justify-between z-10">
-        <div>
-          <div class="flex items-center justify-between border-b border-stone-100 pb-4 mb-4">
-            <span class="font-bold text-slate-800">✨ सारथी मेनू</span>
-            <button onclick="toggleDrawer(false)" class="p-1.5 rounded-lg hover:bg-stone-100 text-slate-500">✕</button>
+        <div class="space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3.5">
+            <span class="font-bold text-slate-800 text-sm">🌿 सारथी सेटिंग्स</span>
+            <button onclick="toggleDrawer(false)" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">✕</button>
           </div>
-          <div class="space-y-2">
-            <a id="adminMenuLink" href="/admin" class="hidden w-full py-2.5 px-3.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold text-sm flex items-center gap-2">🛡️ Admin Panel (Manage AI)</a>
-            <button onclick="openMorningSettings()" class="w-full text-left py-2.5 px-3.5 rounded-xl hover:bg-stone-100 text-slate-700 font-medium text-sm">⚙️ Morning Card Settings</button>
+
+          <!-- Font Size Control in Sidebar -->
+          <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/70 space-y-2">
+            <p class="text-xs font-bold text-slate-700">🔠 अक्षर का आकार (Font Size)</p>
+            <div class="flex items-center justify-between bg-white rounded-xl p-1.5 border border-slate-200">
+              <button onclick="changeFontSize(-1)" class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold">A- छोटा</button>
+              <span id="drawerFontVal" class="text-xs font-bold text-[#075E54]">15 px</span>
+              <button onclick="changeFontSize(1)" class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-bold">A+ बड़ा</button>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <a id="adminMenuLink" href="/admin" class="hidden w-full py-2.5 px-3.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#075E54] font-bold text-xs flex items-center gap-2">
+              🛡️ Admin Control Panel
+            </a>
+            <button onclick="openMorningSettings()" class="w-full text-left py-2.5 px-3.5 rounded-xl hover:bg-slate-100 text-slate-700 font-semibold text-xs flex items-center gap-2">
+              🌅 Morning Card Signature
+            </button>
+            <button onclick="clearLocalChatCache()" class="w-full text-left py-2.5 px-3.5 rounded-xl hover:bg-rose-50 text-rose-600 font-semibold text-xs flex items-center gap-2">
+              🗑️ Local Chat History साफ़ करें
+            </button>
           </div>
         </div>
-        <div class="border-t border-stone-100 pt-4 text-[11px] text-slate-400">
+
+        <div class="border-t border-slate-100 pt-3.5 text-[11px] text-slate-400 space-y-0.5">
           <p id="drawerLimitInfo">DB Chat Limit: 10 chats</p>
-          <p class="mt-0.5">Local Device History: 30 Days</p>
+          <p>AI Model: gemini-3.5-flash-lite</p>
         </div>
       </aside>
     </div>
 
-    <!-- Container 1: Universal Chat UI (All AI Assistants share this exact UI) -->
-    <main id="chatContainer" class="hidden flex-1 flex flex-col max-w-3xl w-full mx-auto h-[calc(100vh-116px)]"></main>
-
-    <!-- Container 2: Morning Studio -->
-    <main id="morningContainer" class="hidden flex-1 max-w-3xl w-full mx-auto px-3.5 py-4 space-y-5 pb-12"></main>
   </div>
 
+  <!-- Separate Modular JS Files (UI vs Module Logic) -->
+  <script src="/js/acupressure.js"></script>
+  <script src="/js/vastu.js"></script>
   <script src="/js/morning.js"></script>
-  <script src="/js/chat.js"></script>
+  <script src="/js/chat-ui.js"></script>
+  <script src="/js/core.js"></script>
 </body>
 </html>
