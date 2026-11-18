@@ -72,7 +72,11 @@ def chat_endpoint(req: ChatReq):
         mod_data = db.table("assistants_config").select("system_prompt").eq("slug", req.moduleSlug).single().execute().data
         base_prompt = (mod_data or {}).get("system_prompt", "Aap ek sahayak AI hain.")
 
-        emb_res = ai.models.embed_content(model="text-embedding-004", contents=req.query)
+        emb_res = ai.models.embed_content(
+            model="gemini-embedding-001",
+            contents=req.query,
+            config=types.EmbedContentConfig(output_dimensionality=768)
+        )
         q_vec = emb_res.embeddings[0].values
 
         match_res = db.rpc("match_knowledge", {
