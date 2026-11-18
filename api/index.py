@@ -20,7 +20,7 @@ SUPABASE_URL = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 def get_admin_db() -> Client:
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
@@ -32,7 +32,7 @@ class ChatReq(BaseModel):
     userId: str
     moduleSlug: str
     query: str
-    sourceMode: Optional[str] = "hybrid"  # "hybrid" (DB + Web) or "book_only"
+    sourceMode: Optional[str] = "hybrid"
 
 class EmbedReq(BaseModel):
     adminId: str
@@ -63,18 +63,15 @@ def chat_endpoint(req: ChatReq):
         db = get_admin_db()
         ai = get_ai()
 
-        # 1. Verify Approved User
         prof = db.table("profiles").select("status, allowed_modules").eq("id", req.userId).single().execute().data
         if not prof or prof.get("status") != "approved":
             raise HTTPException(status_code=403, detail="आपका अकाउंट अभी एडमिन द्वारा अप्रूव नहीं है।")
         if req.moduleSlug not in (prof.get("allowed_modules") or []):
             raise HTTPException(status_code=403, detail="आपको इस असिस्टेंट का एक्सेस नहीं मिला है।")
 
-        # 2. Fetch System Prompt
         mod_data = db.table("assistants_config").select("system_prompt").eq("slug", req.moduleSlug).single().execute().data
         base_prompt = (mod_data or {}).get("system_prompt", "Aap ek sahayak AI hain.")
 
-        # 3. Vector Search in Uploaded Books / Notes
         emb_res = ai.models.embed_content(model="text-embedding-004", contents=req.query)
         q_vec = emb_res.embeddings[0].values
 
@@ -103,7 +100,6 @@ def chat_endpoint(req: ChatReq):
         sys_instruction = f"{base_prompt}\n\nस्रोत नियम: {mode_note}"
         user_prompt = f"संदर्भ ज्ञान:\n{context}\n\nप्रश्न: {req.query}" if context else f"प्रश्न: {req.query}"
 
-        # Enable Google Search grounding when in hybrid mode
         gen_config = types.GenerateContentConfig(
             system_instruction=sys_instruction,
             temperature=0.35,
@@ -117,7 +113,6 @@ def chat_endpoint(req: ChatReq):
         )
         answer = gen_res.text or "क्षमा करें, अभी उत्तर तैयार नहीं हो सका।"
 
-        # 4. Save Chat Log
         ins_res = db.table("chat_logs").insert({
             "user_id": req.userId,
             "module_slug": req.moduleSlug,
