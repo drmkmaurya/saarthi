@@ -38,6 +38,7 @@ class EmbedReq(BaseModel):
     chunks: List[str]
 
 @app.get("/api/config")
+@app.get("/config")
 def public_config():
     return {
         "supabaseUrl": SUPABASE_URL,
