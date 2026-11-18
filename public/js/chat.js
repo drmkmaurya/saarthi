@@ -58,7 +58,8 @@ async function logoutUser() {
 }
 
 async function loadUserDashboard(userId) {
-  const { data: prof } = await sbClient.from('profiles').select('*').eq('id', userId).single();
+  const res = await fetch(`/api/profile?userId=${encodeURIComponent(userId)}`);
+  const { profile: prof, modules: mods } = await res.json();
   currentProfile = prof;
 
   if (!prof || prof.status !== 'approved') {
@@ -70,7 +71,6 @@ async function loadUserDashboard(userId) {
     return;
   }
 
-  // Fill Header Profile Info
   document.getElementById('userFirstName').innerText = (prof.full_name || 'User').split(' ')[0];
   document.getElementById('menuFullName').innerText = prof.full_name || 'User';
   document.getElementById('menuEmail').innerText = prof.email || '';
@@ -88,13 +88,6 @@ async function loadUserDashboard(userId) {
   if (prof.role === 'admin') {
     document.getElementById('adminMenuLink').classList.remove('hidden');
   }
-
-  // Load Allowed Modules
-  const { data: mods } = await sbClient
-    .from('assistants_config')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order', { ascending: true });
 
   allModules = (mods || []).filter(m => (prof.allowed_modules || []).includes(m.slug));
   renderModuleTabs();
